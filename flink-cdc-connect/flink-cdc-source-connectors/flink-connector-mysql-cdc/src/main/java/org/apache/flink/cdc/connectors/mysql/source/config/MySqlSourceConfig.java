@@ -20,6 +20,7 @@ package org.apache.flink.cdc.connectors.mysql.source.config;
 import org.apache.flink.cdc.connectors.mysql.source.MySqlSource;
 import org.apache.flink.cdc.connectors.mysql.table.StartupOptions;
 import org.apache.flink.table.catalog.ObjectPath;
+import org.apache.flink.util.TemporaryClassLoaderContext;
 
 import io.debezium.config.Configuration;
 import io.debezium.connector.mysql.MySqlConnectorConfig;
@@ -117,7 +118,7 @@ public class MySqlSourceConfig implements Serializable {
         this.closeIdleReaders = closeIdleReaders;
         this.dbzProperties = checkNotNull(dbzProperties);
         this.dbzConfiguration = Configuration.from(dbzProperties);
-        this.dbzMySqlConfig = new MySqlConnectorConfig(dbzConfiguration);
+        this.dbzMySqlConfig = createConnectorConfig(dbzConfiguration);
         this.jdbcProperties = jdbcProperties;
         this.chunkKeyColumns = chunkKeyColumns;
         this.skipSnapshotBackfill = skipSnapshotBackfill;
@@ -210,6 +211,17 @@ public class MySqlSourceConfig implements Serializable {
 
     public Configuration getDbzConfiguration() {
         return dbzConfiguration;
+    }
+
+    private static MySqlConnectorConfig createConnectorConfig(Configuration dbzConfiguration) {
+        // Debezium 2.0 resolves classes through the thread context class loader
+        // (io.debezium.config.Instantiator, and the ServiceLoader based SPIs). On a Flink
+        // thread that loader may be a user code class loader from a previous job attempt,
+        // which is already closed. Pin it to the loader that loaded Debezium.
+        try (TemporaryClassLoaderContext ignored =
+                TemporaryClassLoaderContext.of(MySqlConnectorConfig.class.getClassLoader())) {
+            return new MySqlConnectorConfig(dbzConfiguration);
+        }
     }
 
     public MySqlConnectorConfig getMySqlConnectorConfig() {

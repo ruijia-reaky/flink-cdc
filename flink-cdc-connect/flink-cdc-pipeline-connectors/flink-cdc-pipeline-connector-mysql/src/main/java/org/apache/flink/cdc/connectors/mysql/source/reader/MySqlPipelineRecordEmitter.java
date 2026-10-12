@@ -34,6 +34,7 @@ import org.apache.flink.cdc.debezium.DebeziumDeserializationSchema;
 import org.apache.flink.connector.base.source.reader.RecordEmitter;
 
 import io.debezium.connector.mysql.antlr.MySqlAntlrDdlParser;
+import io.debezium.connector.mysql.charset.MySqlCharsetRegistry;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.relational.Column;
 import io.debezium.relational.Table;
@@ -229,7 +230,14 @@ public class MySqlPipelineRecordEmitter extends MySqlRecordEmitter<Event> {
 
     private synchronized MySqlAntlrDdlParser getParser() {
         if (mySqlAntlrDdlParser == null) {
-            mySqlAntlrDdlParser = new MySqlAntlrDdlParser();
+            mySqlAntlrDdlParser =
+                    new MySqlAntlrDdlParser(
+                            true,
+                            false,
+                            false,
+                            null,
+                            Tables.TableFilter.includeAll(),
+                            new MySqlCharsetRegistry());
         }
         return mySqlAntlrDdlParser;
     }

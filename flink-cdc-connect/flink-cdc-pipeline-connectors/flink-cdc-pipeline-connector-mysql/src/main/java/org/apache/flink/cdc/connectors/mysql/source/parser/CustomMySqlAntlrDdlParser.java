@@ -22,7 +22,9 @@ import org.apache.flink.cdc.common.event.SchemaChangeEvent;
 import io.debezium.antlr.AntlrDdlParserListener;
 import io.debezium.antlr.DataTypeResolver;
 import io.debezium.connector.mysql.antlr.MySqlAntlrDdlParser;
+import io.debezium.connector.mysql.charset.MySqlCharsetRegistry;
 import io.debezium.ddl.parser.mysql.generated.MySqlParser;
+import io.debezium.relational.Tables;
 
 import java.sql.Types;
 import java.util.ArrayList;
@@ -36,7 +38,13 @@ public class CustomMySqlAntlrDdlParser extends MySqlAntlrDdlParser {
     private final LinkedList<SchemaChangeEvent> parsedEvents;
 
     public CustomMySqlAntlrDdlParser() {
-        super();
+        super(
+                true,
+                false,
+                false,
+                null,
+                Tables.TableFilter.includeAll(),
+                new MySqlCharsetRegistry());
         this.parsedEvents = new LinkedList<>();
     }
 
