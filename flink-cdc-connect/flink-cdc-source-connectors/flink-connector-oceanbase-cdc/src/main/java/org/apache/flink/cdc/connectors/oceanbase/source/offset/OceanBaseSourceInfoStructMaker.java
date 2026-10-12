@@ -43,6 +43,12 @@ public class OceanBaseSourceInfoStructMaker implements SourceInfoStructMaker<Oce
     }
 
     @Override
+    public void init(
+            String connector, String version, io.debezium.config.CommonConnectorConfig config) {
+        // This connector defines its source schema in the constructor.
+    }
+
+    @Override
     public Schema schema() {
         return schema;
     }

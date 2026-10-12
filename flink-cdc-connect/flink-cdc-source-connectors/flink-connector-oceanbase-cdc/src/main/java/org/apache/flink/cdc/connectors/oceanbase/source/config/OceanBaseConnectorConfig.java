@@ -47,8 +47,10 @@ public class OceanBaseConnectorConfig extends RelationalDatabaseConnectorConfig 
     public OceanBaseConnectorConfig(
             String compatibleMode, String serverTimeZone, Properties properties) {
         super(
-                Configuration.from(properties),
-                LOGICAL_NAME,
+                Configuration.from(properties)
+                        .edit()
+                        .with(TOPIC_PREFIX, properties.getProperty("topic.prefix", LOGICAL_NAME))
+                        .build(),
                 Tables.TableFilter.fromPredicate(
                         tableId ->
                                 "mysql".equalsIgnoreCase(compatibleMode)
@@ -58,9 +60,21 @@ public class OceanBaseConnectorConfig extends RelationalDatabaseConnectorConfig 
                 DEFAULT_SNAPSHOT_FETCH_SIZE,
                 "mysql".equalsIgnoreCase(compatibleMode)
                         ? ColumnFilterMode.CATALOG
-                        : ColumnFilterMode.SCHEMA);
+                        : ColumnFilterMode.SCHEMA,
+                false);
         this.compatibleMode = compatibleMode;
         this.serverTimeZone = serverTimeZone;
+    }
+
+    @Override
+    public io.debezium.config.EnumeratedValue getSnapshotMode() {
+        return () -> "initial";
+    }
+
+    @Override
+    public java.util.Optional<? extends io.debezium.config.EnumeratedValue>
+            getSnapshotLockingMode() {
+        return java.util.Optional.empty();
     }
 
     public String getCompatibleMode() {

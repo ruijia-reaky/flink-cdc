@@ -23,7 +23,6 @@ import org.apache.flink.cdc.connectors.oceanbase.source.converter.OceanBaseValue
 import io.debezium.relational.RelationalDatabaseSchema;
 import io.debezium.relational.TableSchemaBuilder;
 import io.debezium.relational.Tables;
-import io.debezium.schema.TopicSelector;
 
 /** OceanBase database schema. */
 public class OceanBaseDatabaseSchema extends RelationalDatabaseSchema {
@@ -34,18 +33,16 @@ public class OceanBaseDatabaseSchema extends RelationalDatabaseSchema {
             boolean tableIdCaseInsensitive) {
         super(
                 connectorConfig,
-                TopicSelector.defaultSelector(
-                        connectorConfig,
-                        (tableId, prefix, delimiter) ->
-                                String.join(delimiter, prefix, tableId.identifier())),
+                connectorConfig.getTopicNamingStrategy(
+                        io.debezium.config.CommonConnectorConfig.TOPIC_NAMING_STRATEGY),
                 tableFilter,
                 connectorConfig.getColumnFilter(),
                 new TableSchemaBuilder(
                         new OceanBaseValueConverters(connectorConfig),
-                        connectorConfig.schemaNameAdjustmentMode().createAdjuster(),
+                        connectorConfig.schemaNameAdjuster(),
                         connectorConfig.customConverterRegistry(),
                         connectorConfig.getSourceInfoStructMaker().schema(),
-                        connectorConfig.getSanitizeFieldNames(),
+                        connectorConfig.getFieldNamer(),
                         false),
                 tableIdCaseInsensitive,
                 connectorConfig.getKeyMapper());
