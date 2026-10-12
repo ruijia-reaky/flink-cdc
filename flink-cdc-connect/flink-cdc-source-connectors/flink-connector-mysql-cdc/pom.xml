@@ -30,6 +30,12 @@ limitations under the License.
     <packaging>jar</packaging>
 
     <dependencies>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>4.11.0</version>
+            <scope>test</scope>
+        </dependency>
 
         <!-- Debezium dependencies -->
         <dependency>
@@ -42,6 +48,13 @@ limitations under the License.
                     <groupId>org.apache.kafka</groupId>
                 </exclusion>
             </exclusions>
+        </dependency>
+
+        <!-- Debezium 2.7 split the shared binlog engine out of the MySQL connector. -->
+        <dependency>
+            <groupId>io.debezium</groupId>
+            <artifactId>debezium-connector-binlog</artifactId>
+            <version>${debezium.version}</version>
         </dependency>
 
         <dependency>
