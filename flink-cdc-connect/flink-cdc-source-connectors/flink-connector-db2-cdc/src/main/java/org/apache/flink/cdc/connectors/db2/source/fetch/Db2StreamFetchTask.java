@@ -24,9 +24,11 @@ import org.apache.flink.cdc.connectors.base.source.meta.split.StreamSplit;
 import org.apache.flink.cdc.connectors.base.source.meta.wartermark.WatermarkKind;
 import org.apache.flink.cdc.connectors.base.source.reader.external.FetchTask;
 import org.apache.flink.cdc.connectors.db2.source.offset.LsnOffset;
+import org.apache.flink.cdc.debezium.internal.SnapshotterServiceFactory;
 
 import io.debezium.DebeziumException;
 import io.debezium.connector.db2.Db2Connection;
+import io.debezium.connector.db2.Db2Connector;
 import io.debezium.connector.db2.Db2ConnectorConfig;
 import io.debezium.connector.db2.Db2DatabaseSchema;
 import io.debezium.connector.db2.Db2OffsetContext;
@@ -35,6 +37,7 @@ import io.debezium.connector.db2.Db2StreamingChangeEventSource;
 import io.debezium.connector.db2.Lsn;
 import io.debezium.pipeline.ErrorHandler;
 import io.debezium.pipeline.source.spi.ChangeEventSource.ChangeEventSourceContext;
+import io.debezium.snapshot.SnapshotterService;
 import io.debezium.util.Clock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,6 +67,8 @@ public class Db2StreamFetchTask implements FetchTask<SourceSplitBase> {
                         sourceFetchContext.getDispatcher(),
                         sourceFetchContext.getErrorHandler(),
                         sourceFetchContext.getDatabaseSchema(),
+                        SnapshotterServiceFactory.create(
+                                sourceFetchContext.getDbzConnectorConfig(), Db2Connector.class),
                         split);
         RedoLogSplitChangeEventSourceContext changeEventSourceContext =
                 new RedoLogSplitChangeEventSourceContext();
@@ -107,6 +112,7 @@ public class Db2StreamFetchTask implements FetchTask<SourceSplitBase> {
                 JdbcSourceEventDispatcher<Db2Partition> dispatcher,
                 ErrorHandler errorHandler,
                 Db2DatabaseSchema schema,
+                SnapshotterService snapshotterService,
                 StreamSplit lsnSplit) {
             super(
                     connectorConfig,
@@ -115,7 +121,8 @@ public class Db2StreamFetchTask implements FetchTask<SourceSplitBase> {
                     dispatcher,
                     errorHandler,
                     Clock.system(),
-                    schema);
+                    schema,
+                    snapshotterService);
             this.lsnSplit = lsnSplit;
             this.dispatcher = dispatcher;
             this.errorHandler = errorHandler;
@@ -169,5 +176,25 @@ public class Db2StreamFetchTask implements FetchTask<SourceSplitBase> {
         public boolean isRunning() {
             return taskRunning;
         }
+
+        // The following methods are only used by Debezium's signal-based blocking snapshot,
+        // which Flink CDC does not use, so they are no-ops here.
+
+        @Override
+        public boolean isPaused() {
+            return false;
+        }
+
+        @Override
+        public void resumeStreaming() throws InterruptedException {}
+
+        @Override
+        public void waitSnapshotCompletion() throws InterruptedException {}
+
+        @Override
+        public void streamingPaused() {}
+
+        @Override
+        public void waitStreamingPaused() throws InterruptedException {}
     }
 }
