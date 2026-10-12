@@ -412,6 +412,9 @@ public abstract class AbstractLogMinerEventProcessor<T extends AbstractTransacti
         }
 
         switch (row.getEventType()) {
+            case INTERNAL:
+                handleInternalEvent(row);
+                break;
             case MISSING_SCN:
                 handleMissingScn(row);
             case START:
@@ -1170,8 +1173,12 @@ public abstract class AbstractLogMinerEventProcessor<T extends AbstractTransacti
      * @throws SQLException if a database exception occurs
      * @throws InterruptedException if the dispatch of an event is interrupted
      */
+    protected void handleInternalEvent(LogMinerEventRow row) {
+        // Overridden by the memory processor to journal LOB statement boundaries.
+    }
+
     protected void handleDataEvent(LogMinerEventRow row) throws SQLException, InterruptedException {
-        if (row.getRedoSql() == null) {
+        if (row.getRedoSql() == null && !row.isRollbackFlag()) {
             return;
         }
 
