@@ -874,7 +874,7 @@ public class NewlyAddedTableITCase extends OracleSourceTestBase {
                         + " 'schema-name' = '%s',"
                         + " 'table-name' = '%s',"
                         + " 'debezium.log.mining.strategy' = 'online_catalog',"
-                        + " 'debezium.database.history.store.only.captured.tables.ddl' = 'true',"
+                        + " 'debezium.schema.history.internal.store.only.captured.tables.ddl' = 'true',"
                         + " 'scan.incremental.snapshot.chunk.size' = '2',"
                         + " 'scan.newly-added-table.enabled' = 'true',"
                         + " 'chunk-meta.group.size' = '2'"

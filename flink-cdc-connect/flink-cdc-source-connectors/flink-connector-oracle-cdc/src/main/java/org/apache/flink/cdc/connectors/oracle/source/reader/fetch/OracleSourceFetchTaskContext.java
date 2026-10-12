@@ -32,6 +32,7 @@ import org.apache.flink.cdc.connectors.oracle.source.utils.OracleUtils;
 import org.apache.flink.cdc.connectors.oracle.util.ChunkUtils;
 import org.apache.flink.table.types.logical.RowType;
 
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.connector.base.ChangeEventQueue;
 import io.debezium.connector.oracle.OracleChangeEventSourceMetricsFactory;
 import io.debezium.connector.oracle.OracleConnection;
@@ -40,11 +41,10 @@ import io.debezium.connector.oracle.OracleDatabaseSchema;
 import io.debezium.connector.oracle.OracleErrorHandler;
 import io.debezium.connector.oracle.OracleOffsetContext;
 import io.debezium.connector.oracle.OraclePartition;
-import io.debezium.connector.oracle.OracleStreamingChangeEventSourceMetrics;
 import io.debezium.connector.oracle.OracleTaskContext;
-import io.debezium.connector.oracle.OracleTopicSelector;
 import io.debezium.connector.oracle.SourceInfo;
 import io.debezium.connector.oracle.logminer.LogMinerOracleOffsetContextLoader;
+import io.debezium.connector.oracle.logminer.LogMinerStreamingChangeEventSourceMetrics;
 import io.debezium.data.Envelope;
 import io.debezium.pipeline.DataChangeEvent;
 import io.debezium.pipeline.ErrorHandler;
@@ -55,8 +55,8 @@ import io.debezium.pipeline.spi.Offsets;
 import io.debezium.relational.Table;
 import io.debezium.relational.TableId;
 import io.debezium.relational.Tables;
-import io.debezium.schema.DataCollectionId;
-import io.debezium.schema.TopicSelector;
+import io.debezium.spi.schema.DataCollectionId;
+import io.debezium.spi.topic.TopicNamingStrategy;
 import io.debezium.util.Collect;
 import oracle.sql.ROWID;
 import org.apache.kafka.connect.data.Struct;
@@ -86,8 +86,8 @@ public class OracleSourceFetchTaskContext extends JdbcSourceFetchTaskContext {
     private OraclePartition partition;
 
     private SnapshotChangeEventSourceMetrics<OraclePartition> snapshotChangeEventSourceMetrics;
-    private OracleStreamingChangeEventSourceMetrics streamingChangeEventSourceMetrics;
-    private TopicSelector<TableId> topicSelector;
+    private LogMinerStreamingChangeEventSourceMetrics streamingChangeEventSourceMetrics;
+    private TopicNamingStrategy<TableId> topicSelector;
     private JdbcSourceEventDispatcher<OraclePartition> dispatcher;
     private ChangeEventQueue<DataChangeEvent> queue;
     private OracleErrorHandler errorHandler;
@@ -103,7 +103,8 @@ public class OracleSourceFetchTaskContext extends JdbcSourceFetchTaskContext {
     public void configure(SourceSplitBase sourceSplitBase) {
         // initial stateful objects
         final OracleConnectorConfig connectorConfig = getDbzConnectorConfig();
-        this.topicSelector = OracleTopicSelector.defaultSelector(connectorConfig);
+        this.topicSelector =
+                connectorConfig.getTopicNamingStrategy(CommonConnectorConfig.TOPIC_NAMING_STRATEGY);
         EmbeddedFlinkDatabaseHistory.registerHistory(
                 sourceConfig
                         .getDbzConfiguration()
@@ -114,7 +115,14 @@ public class OracleSourceFetchTaskContext extends JdbcSourceFetchTaskContext {
         this.offsetContext =
                 loadStartingOffsetState(
                         new LogMinerOracleOffsetContextLoader(connectorConfig), sourceSplitBase);
-        this.partition = new OraclePartition(connectorConfig.getLogicalName());
+        // Debezium 2.0 OraclePartition requires the database name (PDB name when present).
+        final String partitionDatabaseName =
+                (connectorConfig.getPdbName() == null
+                                || connectorConfig.getPdbName().trim().isEmpty())
+                        ? connectorConfig.getDatabaseName()
+                        : connectorConfig.getPdbName();
+        this.partition =
+                new OraclePartition(connectorConfig.getLogicalName(), partitionDatabaseName);
         validateAndLoadDatabaseHistory(offsetContext, databaseSchema);
 
         this.taskContext = new OracleTaskContext(connectorConfig, databaseSchema);
@@ -149,16 +157,16 @@ public class OracleSourceFetchTaskContext extends JdbcSourceFetchTaskContext {
 
         final OracleChangeEventSourceMetricsFactory changeEventSourceMetricsFactory =
                 new OracleChangeEventSourceMetricsFactory(
-                        new OracleStreamingChangeEventSourceMetrics(
+                        new LogMinerStreamingChangeEventSourceMetrics(
                                 taskContext, queue, metadataProvider, connectorConfig));
         this.snapshotChangeEventSourceMetrics =
                 changeEventSourceMetricsFactory.getSnapshotMetrics(
                         taskContext, queue, metadataProvider);
         this.streamingChangeEventSourceMetrics =
-                (OracleStreamingChangeEventSourceMetrics)
+                (LogMinerStreamingChangeEventSourceMetrics)
                         changeEventSourceMetricsFactory.getStreamingMetrics(
                                 taskContext, queue, metadataProvider);
-        this.errorHandler = new OracleErrorHandler(connectorConfig, queue);
+        this.errorHandler = new OracleErrorHandler(connectorConfig, queue, null);
     }
 
     @Override
@@ -184,7 +192,7 @@ public class OracleSourceFetchTaskContext extends JdbcSourceFetchTaskContext {
         return snapshotChangeEventSourceMetrics;
     }
 
-    public OracleStreamingChangeEventSourceMetrics getStreamingChangeEventSourceMetrics() {
+    public LogMinerStreamingChangeEventSourceMetrics getStreamingChangeEventSourceMetrics() {
         return streamingChangeEventSourceMetrics;
     }
 

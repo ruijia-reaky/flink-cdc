@@ -29,7 +29,7 @@ import io.debezium.connector.oracle.OracleConnectorConfig;
 import io.debezium.connector.oracle.OracleDatabaseSchema;
 import io.debezium.connector.oracle.OracleOffsetContext;
 import io.debezium.connector.oracle.OraclePartition;
-import io.debezium.connector.oracle.OracleStreamingChangeEventSourceMetrics;
+import io.debezium.connector.oracle.logminer.LogMinerStreamingChangeEventSourceMetrics;
 import io.debezium.connector.oracle.logminer.events.LogMinerEventRow;
 import io.debezium.connector.oracle.logminer.processor.LogMinerEventProcessor;
 import io.debezium.connector.oracle.logminer.processor.infinispan.EmbeddedInfinispanLogMinerEventProcessor;
@@ -60,7 +60,7 @@ public class EventProcessorFactory {
             OraclePartition partition,
             OracleOffsetContext offsetContext,
             OracleDatabaseSchema schema,
-            OracleStreamingChangeEventSourceMetrics metrics,
+            LogMinerStreamingChangeEventSourceMetrics metrics,
             ErrorHandler errorHandler,
             StreamSplit redoLogSplit) {
         final OracleConnectorConfig.LogMiningBufferType bufferType =
@@ -127,7 +127,7 @@ public class EventProcessorFactory {
                 OraclePartition partition,
                 OracleOffsetContext offsetContext,
                 OracleDatabaseSchema schema,
-                OracleStreamingChangeEventSourceMetrics metrics,
+                LogMinerStreamingChangeEventSourceMetrics metrics,
                 ErrorHandler errorHandler,
                 StreamSplit redoLogSplit) {
             super(
@@ -176,7 +176,7 @@ public class EventProcessorFactory {
                 OraclePartition partition,
                 OracleOffsetContext offsetContext,
                 OracleDatabaseSchema schema,
-                OracleStreamingChangeEventSourceMetrics metrics,
+                LogMinerStreamingChangeEventSourceMetrics metrics,
                 ErrorHandler errorHandler,
                 StreamSplit redoLogSplit) {
             super(
@@ -225,7 +225,7 @@ public class EventProcessorFactory {
                 OraclePartition partition,
                 OracleOffsetContext offsetContext,
                 OracleDatabaseSchema schema,
-                OracleStreamingChangeEventSourceMetrics metrics,
+                LogMinerStreamingChangeEventSourceMetrics metrics,
                 ErrorHandler errorHandler,
                 StreamSplit redoLogSplit) {
             super(

@@ -131,7 +131,7 @@ public class OracleConnectorITCase {
                                 + " 'password' = '%s',"
                                 + " 'scan.incremental.snapshot.enabled' = '%s',"
                                 + " 'debezium.log.mining.strategy' = 'online_catalog',"
-                                + " 'debezium.database.history.store.only.captured.tables.ddl' = 'true',"
+                                + " 'debezium.schema.history.internal.store.only.captured.tables.ddl' = 'true',"
                                 + " 'scan.incremental.snapshot.chunk.size' = '2',"
                                 + " 'database-name' = 'ORCLCDB',"
                                 + " 'schema-name' = '%s',"
@@ -383,7 +383,7 @@ public class OracleConnectorITCase {
                                 + " 'scan.incremental.snapshot.enabled' = '%s',"
                                 + " 'scan.incremental.snapshot.chunk.key-column' = 'ID',"
                                 + " 'debezium.log.mining.strategy' = 'online_catalog',"
-                                + " 'debezium.database.history.store.only.captured.tables.ddl' = 'true',"
+                                + " 'debezium.schema.history.internal.store.only.captured.tables.ddl' = 'true',"
                                 + " 'scan.incremental.snapshot.chunk.size' = '2',"
                                 + " 'database-name' = 'ORCLCDB',"
                                 + " 'schema-name' = '%s',"
@@ -475,7 +475,9 @@ public class OracleConnectorITCase {
                                 + " 'password' = '%s',"
                                 + " 'scan.incremental.snapshot.enabled' = '%s',"
                                 + " 'debezium.log.mining.strategy' = 'online_catalog',"
-                                // + " 'debezium.database.history.store.only.captured.tables.ddl' =
+                                // + "
+                                // 'debezium.schema.history.internal.store.only.captured.tables.ddl'
+                                // =
                                 // 'true',"
                                 + " 'scan.incremental.snapshot.chunk.size' = '2',"
                                 + " 'database-name' = 'ORCLCDB',"
@@ -573,7 +575,7 @@ public class OracleConnectorITCase {
                                 + " 'password' = '%s',"
                                 + " 'scan.incremental.snapshot.enabled' = '%s',"
                                 + " 'debezium.log.mining.strategy' = 'online_catalog',"
-                                + " 'debezium.database.history.store.only.captured.tables.ddl' = 'true',"
+                                + " 'debezium.schema.history.internal.store.only.captured.tables.ddl' = 'true',"
                                 + " 'database-name' = 'ORCLCDB',"
                                 + " 'schema-name' = '%s',"
                                 + " 'table-name' = '%s' ,"
@@ -672,7 +674,7 @@ public class OracleConnectorITCase {
                                 + " 'password' = '%s',"
                                 + " 'scan.incremental.snapshot.enabled' = '%s',"
                                 + " 'debezium.log.mining.strategy' = 'online_catalog',"
-                                + " 'debezium.database.history.store.only.captured.tables.ddl' = 'true',"
+                                + " 'debezium.schema.history.internal.store.only.captured.tables.ddl' = 'true',"
                                 + " 'database-name' = 'ORCLCDB',"
                                 + " 'schema-name' = '%s',"
                                 + " 'table-name' = '%s'"
@@ -783,7 +785,7 @@ public class OracleConnectorITCase {
                                 + " 'password' = '%s',"
                                 + " 'scan.incremental.snapshot.enabled' = '%s',"
                                 + " 'debezium.log.mining.strategy' = 'online_catalog',"
-                                + " 'debezium.database.history.store.only.captured.tables.ddl' = 'true',"
+                                + " 'debezium.schema.history.internal.store.only.captured.tables.ddl' = 'true',"
                                 + " 'scan.incremental.snapshot.chunk.size' = '2',"
                                 + " 'database-name' = 'ORCLCDB',"
                                 + " 'schema-name' = '%s',"
@@ -826,7 +828,7 @@ public class OracleConnectorITCase {
                             + "2022-10-30T12:34:56.130, "
                             + "2022-10-30T12:34:56.125500, "
                             + "2022-10-30T12:34:56.125457, "
-                            + "2022-10-30T01:34:56.00789-11:00, "
+                            + "2022-10-30T01:34:56.007890-11:00, "
                             + "2022-10-29T17:34:56.007890Z, "
                             + "-110451600000000, "
                             + "-93784560000, "
@@ -863,7 +865,7 @@ public class OracleConnectorITCase {
                                 + " 'table-name' = 'category',"
                                 + " 'scan.incremental.snapshot.enabled' = 'false',"
                                 + " 'debezium.log.mining.strategy' = 'online_catalog',"
-                                + " 'debezium.database.history.store.only.captured.tables.ddl' = 'true'"
+                                + " 'debezium.schema.history.internal.store.only.captured.tables.ddl' = 'true'"
                                 + ")",
                         ORACLE_CONTAINER.getHost(),
                         ORACLE_CONTAINER.getOraclePort(),

@@ -553,7 +553,7 @@ public class OracleSourceITCase extends OracleSourceTestBase {
                                 + " 'table-name' = '%s',"
                                 + " 'scan.incremental.snapshot.enabled' = 'false',"
                                 + " 'debezium.log.mining.strategy' = 'online_catalog',"
-                                + " 'debezium.database.history.store.only.captured.tables.ddl' = 'true',"
+                                + " 'debezium.schema.history.internal.store.only.captured.tables.ddl' = 'true',"
                                 + " 'scan.incremental.snapshot.backfill.skip' = '%s'"
                                 + "%s"
                                 + ")",
