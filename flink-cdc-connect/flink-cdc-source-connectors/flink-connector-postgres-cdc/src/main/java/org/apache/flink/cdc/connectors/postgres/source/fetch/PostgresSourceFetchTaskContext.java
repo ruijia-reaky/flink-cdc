@@ -95,6 +95,7 @@ public class PostgresSourceFetchTaskContext extends JdbcSourceFetchTaskContext {
     private EventMetadataProvider metadataProvider;
     private SnapshotChangeEventSourceMetrics<PostgresPartition> snapshotChangeEventSourceMetrics;
     private SnapshotterService snapshotterService;
+    private Heartbeat heartbeat;
 
     public PostgresSourceFetchTaskContext(
             JdbcSourceConfig sourceConfig, PostgresDialect dataSourceDialect) {
@@ -223,7 +224,15 @@ public class PostgresSourceFetchTaskContext extends JdbcSourceFetchTaskContext {
         this.metadataProvider = PostgresObjectUtils.newEventMetadataProvider();
         this.dispatcher =
                 new JdbcSourceEventDispatcher<>(
-                        dbzConfig,
+                        // PostgreSQL's dispatcher below owns heartbeats. This dispatcher is
+                        // used for Flink watermarks and must not create a second database heartbeat
+                        // without a connection provider when heartbeat.action.query is configured.
+                        new PostgresConnectorConfig(
+                                dbzConfig
+                                        .getConfig()
+                                        .edit()
+                                        .with(Heartbeat.HEARTBEAT_INTERVAL, 0)
+                                        .build()),
                         topicSelector,
                         schema,
                         queue,
@@ -232,6 +241,21 @@ public class PostgresSourceFetchTaskContext extends JdbcSourceFetchTaskContext {
                         metadataProvider,
                         schemaNameAdjuster,
                         new PostgresSchemaChangeEventHandler());
+
+        // Database heartbeats require their own JDBC connection in Debezium 2.7.
+        // The three-argument factory has no connection provider and fails for action queries.
+        this.heartbeat =
+                new io.debezium.heartbeat.HeartbeatFactory<>(
+                                dbzConfig,
+                                topicSelector,
+                                schemaNameAdjuster,
+                                () ->
+                                        new PostgresConnection(
+                                                getDbzConnectorConfig().getJdbcConfig(),
+                                                valueConverterBuilder,
+                                                CONNECTION_NAME + "-heartbeat"),
+                                e -> errorHandler.setProducerThrowable(e))
+                        .createHeartbeat();
 
         this.postgresDispatcher =
                 new PostgresEventDispatcher<>(
@@ -243,9 +267,7 @@ public class PostgresSourceFetchTaskContext extends JdbcSourceFetchTaskContext {
                         DataChangeEvent::new,
                         null,
                         metadataProvider,
-                        new io.debezium.heartbeat.HeartbeatFactory<>(
-                                        dbzConfig, topicSelector, schemaNameAdjuster)
-                                .createHeartbeat(),
+                        heartbeat,
                         schemaNameAdjuster,
                         null);
 
@@ -316,6 +338,9 @@ public class PostgresSourceFetchTaskContext extends JdbcSourceFetchTaskContext {
 
     @Override
     public void close() throws Exception {
+        if (heartbeat != null) {
+            heartbeat.close();
+        }
         if (jdbcConnection != null) {
             jdbcConnection.close();
         }
