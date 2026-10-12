@@ -69,7 +69,8 @@ public class CustomPostgresSchema {
         final PostgresOffsetContext offsetContext =
                 PostgresOffsetContext.initialContext(dbzConfig, jdbcConnection, Clock.SYSTEM);
 
-        PostgresPartition partition = new PostgresPartition(dbzConfig.getLogicalName());
+        PostgresPartition partition =
+                new PostgresPartition(dbzConfig.getLogicalName(), dbzConfig.databaseName());
 
         // set the events to populate proper sourceInfo into offsetContext
         offsetContext.event(tableId, Instant.now());
