@@ -45,6 +45,8 @@ public class OracleStreamFetchTask implements FetchTask<SourceSplitBase> {
 
     private final StreamSplit split;
     private volatile boolean taskRunning = false;
+    private final StoppableChangeEventSourceContext changeEventSourceContext =
+            new StoppableChangeEventSourceContext();
 
     public OracleStreamFetchTask(StreamSplit split) {
         this.split = split;
@@ -64,12 +66,14 @@ public class OracleStreamFetchTask implements FetchTask<SourceSplitBase> {
                         sourceFetchContext.getSourceConfig().getOriginDbzConnectorConfig(),
                         sourceFetchContext.getStreamingChangeEventSourceMetrics(),
                         split);
-        StoppableChangeEventSourceContext changeEventSourceContext =
-                new StoppableChangeEventSourceContext();
-        redoLogSplitReadTask.execute(
-                changeEventSourceContext,
-                sourceFetchContext.getPartition(),
-                sourceFetchContext.getOffsetContext());
+        try {
+            redoLogSplitReadTask.execute(
+                    changeEventSourceContext,
+                    sourceFetchContext.getPartition(),
+                    sourceFetchContext.getOffsetContext());
+        } finally {
+            taskRunning = false;
+        }
     }
 
     @Override
@@ -85,6 +89,9 @@ public class OracleStreamFetchTask implements FetchTask<SourceSplitBase> {
     @Override
     public void close() {
         taskRunning = false;
+        // Stop Debezium before the fetcher closes the JDBC connection. Otherwise its mining
+        // loop can reopen the connection with auto-commit enabled after job cancellation.
+        changeEventSourceContext.stopChangeEventSource();
     }
 
     /**
