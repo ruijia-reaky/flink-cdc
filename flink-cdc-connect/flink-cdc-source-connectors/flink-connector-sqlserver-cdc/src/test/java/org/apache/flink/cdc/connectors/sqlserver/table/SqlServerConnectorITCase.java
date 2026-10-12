@@ -99,7 +99,7 @@ public class SqlServerConnectorITCase extends SqlServerTestBase {
                                 + " 'port' = '%s',"
                                 + " 'username' = '%s',"
                                 + " 'password' = '%s',"
-                                + " 'debezium.database.history.store.only.captured.tables.ddl' = 'true',"
+                                + " 'debezium.schema.history.internal.store.only.captured.tables.ddl' = 'true',"
                                 + " 'scan.incremental.snapshot.enabled' = '%s',"
                                 + " 'database-name' = '%s',"
                                 + " 'table-name' = '%s'"
