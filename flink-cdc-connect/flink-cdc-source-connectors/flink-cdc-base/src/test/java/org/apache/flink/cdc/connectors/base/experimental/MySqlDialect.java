@@ -36,7 +36,7 @@ import org.apache.flink.cdc.connectors.base.source.reader.external.FetchTask;
 import org.apache.flink.util.FlinkRuntimeException;
 
 import com.github.shyiko.mysql.binlog.BinaryLogClient;
-import io.debezium.connector.mysql.MySqlConnection;
+import io.debezium.connector.mysql.jdbc.MySqlConnection;
 import io.debezium.jdbc.JdbcConfiguration;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.relational.TableId;

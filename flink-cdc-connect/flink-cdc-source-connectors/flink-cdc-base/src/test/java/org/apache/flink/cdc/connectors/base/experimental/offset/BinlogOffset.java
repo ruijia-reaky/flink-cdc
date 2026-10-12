@@ -19,7 +19,7 @@ package org.apache.flink.cdc.connectors.base.experimental.offset;
 
 import org.apache.flink.cdc.connectors.base.source.meta.offset.Offset;
 
-import io.debezium.connector.mysql.GtidSet;
+import io.debezium.connector.mysql.gtid.MySqlGtidSet;
 import org.apache.commons.lang3.StringUtils;
 
 import javax.annotation.Nullable;
@@ -137,8 +137,8 @@ public class BinlogOffset extends Offset {
             // The target offset uses GTIDs, so we ideally compare using GTIDs ...
             if (StringUtils.isNotEmpty(gtidSetStr)) {
                 // Both have GTIDs, so base the comparison entirely on the GTID sets.
-                GtidSet gtidSet = new GtidSet(gtidSetStr);
-                GtidSet targetGtidSet = new GtidSet(targetGtidSetStr);
+                MySqlGtidSet gtidSet = new MySqlGtidSet(gtidSetStr);
+                MySqlGtidSet targetGtidSet = new MySqlGtidSet(targetGtidSetStr);
                 if (gtidSet.equals(targetGtidSet)) {
                     long restartSkipEvents = this.getRestartSkipEvents();
                     long targetRestartSkipEvents = that.getRestartSkipEvents();

@@ -22,18 +22,17 @@ import org.apache.flink.util.FlinkRuntimeException;
 
 import com.github.shyiko.mysql.binlog.BinaryLogClient;
 import io.debezium.config.Configuration;
-import io.debezium.connector.mysql.MySqlConnection;
+import io.debezium.connector.binlog.jdbc.BinlogSystemVariables;
 import io.debezium.connector.mysql.MySqlConnectorConfig;
 import io.debezium.connector.mysql.MySqlDatabaseSchema;
-import io.debezium.connector.mysql.MySqlSystemVariables;
-import io.debezium.connector.mysql.MySqlTopicSelector;
-import io.debezium.connector.mysql.MySqlValueConverters;
+import io.debezium.connector.mysql.jdbc.MySqlConnection;
+import io.debezium.connector.mysql.jdbc.MySqlValueConverters;
 import io.debezium.jdbc.JdbcConnection;
 import io.debezium.jdbc.JdbcValueConverters;
 import io.debezium.jdbc.TemporalPrecisionMode;
 import io.debezium.relational.TableId;
-import io.debezium.schema.TopicSelector;
-import io.debezium.util.SchemaNameAdjuster;
+import io.debezium.schema.SchemaNameAdjuster;
+import io.debezium.spi.topic.TopicNamingStrategy;
 
 import java.sql.SQLException;
 import java.util.HashMap;
@@ -45,12 +44,14 @@ public class MySqlConnectionUtils {
     /** Creates a new {@link MySqlConnection}, but not open the connection. */
     public static MySqlConnection createMySqlConnection(Configuration dbzConfiguration) {
         return new MySqlConnection(
-                new MySqlConnection.MySqlConnectionConfiguration(dbzConfiguration));
+                new io.debezium.connector.mysql.jdbc.MySqlConnectionConfiguration(dbzConfiguration),
+                new io.debezium.connector.mysql.jdbc.MySqlTextProtocolFieldReader(null));
     }
 
     /** Creates a new {@link BinaryLogClient} for consuming mysql binlog. */
     public static BinaryLogClient createBinaryClient(Configuration dbzConfiguration) {
-        final MySqlConnectorConfig connectorConfig = new MySqlConnectorConfig(dbzConfiguration);
+        final io.debezium.connector.mysql.jdbc.MySqlConnectionConfiguration connectorConfig =
+                new io.debezium.connector.mysql.jdbc.MySqlConnectionConfiguration(dbzConfiguration);
         return new BinaryLogClient(
                 connectorConfig.hostname(),
                 connectorConfig.port(),
@@ -61,7 +62,8 @@ public class MySqlConnectionUtils {
     /** Creates a new {@link MySqlDatabaseSchema} to monitor the latest MySql database schemas. */
     public static MySqlDatabaseSchema createMySqlDatabaseSchema(
             MySqlConnectorConfig dbzMySqlConfig, boolean isTableIdCaseSensitive) {
-        TopicSelector<TableId> topicSelector = MySqlTopicSelector.defaultSelector(dbzMySqlConfig);
+        TopicNamingStrategy<TableId> topicSelector =
+                dbzMySqlConfig.getTopicNamingStrategy(MySqlConnectorConfig.TOPIC_NAMING_STRATEGY);
         SchemaNameAdjuster schemaNameAdjuster = SchemaNameAdjuster.create();
         MySqlValueConverters valueConverters = getValueConverters(dbzMySqlConfig);
         return new MySqlDatabaseSchema(
@@ -125,17 +127,18 @@ public class MySqlConnectionUtils {
                 bigIntUnsignedMode,
                 dbzMySqlConfig.binaryHandlingMode(),
                 timeAdjusterEnabled ? MySqlValueConverters::adjustTemporal : x -> x,
-                MySqlValueConverters::defaultParsingErrorHandler);
+                dbzMySqlConfig.getEventConvertingFailureHandlingMode(),
+                dbzMySqlConfig.getServiceRegistry());
     }
 
     public static boolean isTableIdCaseSensitive(JdbcConnection connection) {
         return !"0"
                 .equals(
-                        readMySqlSystemVariables(connection)
-                                .get(MySqlSystemVariables.LOWER_CASE_TABLE_NAMES));
+                        readBinlogSystemVariables(connection)
+                                .get(BinlogSystemVariables.LOWER_CASE_TABLE_NAMES));
     }
 
-    public static Map<String, String> readMySqlSystemVariables(JdbcConnection connection) {
+    public static Map<String, String> readBinlogSystemVariables(JdbcConnection connection) {
         // Read the system variables from the MySQL instance and get the current database name ...
         return querySystemVariables(connection, "SHOW VARIABLES");
     }

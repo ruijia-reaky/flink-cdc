@@ -58,7 +58,7 @@ public class MySqlSourceConfigFactory extends JdbcSourceConfigFactory {
         // unique across all other connectors, since it is used as a prefix for all
         // Kafka topic names emanating from this connector.
         // Only alphanumeric characters and underscores should be used.
-        props.setProperty("database.server.name", "mysql_binlog_source");
+        props.setProperty("topic.prefix", "mysql_binlog_source");
         props.setProperty("database.hostname", checkNotNull(hostname));
         props.setProperty("database.user", checkNotNull(username));
         props.setProperty("database.password", checkNotNull(password));
@@ -68,10 +68,11 @@ public class MySqlSourceConfigFactory extends JdbcSourceConfigFactory {
         props.setProperty("database.serverTimezone", serverTimeZone);
         // database history
         props.setProperty(
-                "database.history", EmbeddedFlinkDatabaseHistory.class.getCanonicalName());
-        props.setProperty("database.history.instance.name", UUID.randomUUID() + "_" + subtaskId);
-        props.setProperty("database.history.skip.unparseable.ddl", String.valueOf(true));
-        props.setProperty("database.history.refer.ddl", String.valueOf(true));
+                "schema.history.internal", EmbeddedFlinkDatabaseHistory.class.getCanonicalName());
+        props.setProperty(
+                "schema.history.internal.instance.name", UUID.randomUUID() + "_" + subtaskId);
+        props.setProperty("schema.history.internal.skip.unparseable.ddl", String.valueOf(true));
+        props.setProperty("schema.history.internal.refer.ddl", String.valueOf(true));
         props.setProperty("connect.timeout.ms", String.valueOf(connectTimeout.toMillis()));
         // the underlying debezium reader should always capture the schema changes and forward them.
         // Note: the includeSchemaChanges parameter is used to control emitting the schema record,

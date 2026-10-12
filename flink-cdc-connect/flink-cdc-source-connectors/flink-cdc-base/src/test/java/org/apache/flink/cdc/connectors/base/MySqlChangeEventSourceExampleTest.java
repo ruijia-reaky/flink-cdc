@@ -40,7 +40,7 @@ import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.util.CloseableIterator;
 
-import io.debezium.connector.mysql.MySqlConnection;
+import io.debezium.connector.mysql.jdbc.MySqlConnection;
 import io.debezium.jdbc.JdbcConnection;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
