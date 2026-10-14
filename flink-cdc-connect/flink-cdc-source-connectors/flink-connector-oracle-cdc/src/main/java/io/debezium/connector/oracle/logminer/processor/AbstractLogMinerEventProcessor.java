@@ -107,6 +107,8 @@ public abstract class AbstractLogMinerEventProcessor<T extends AbstractTransacti
     private final XmlBeginParser xmlBeginParser;
     private final Tables.TableFilter tableFilter;
 
+    private final LogMinerDiagnostics diagnostics;
+
     protected final Counters counters;
     protected final String sqlQuery;
 
@@ -127,6 +129,7 @@ public abstract class AbstractLogMinerEventProcessor<T extends AbstractTransacti
             EventDispatcher<OraclePartition, TableId> dispatcher,
             LogMinerStreamingChangeEventSourceMetrics metrics,
             OracleConnection jdbcConnection) {
+        this.diagnostics = new LogMinerDiagnostics(connectorConfig.getConfig());
         this.context = context;
         this.connectorConfig = connectorConfig;
         this.schema = schema;
@@ -232,66 +235,121 @@ public abstract class AbstractLogMinerEventProcessor<T extends AbstractTransacti
     @Override
     public Scn process(Scn startScn, Scn endScn) throws SQLException, InterruptedException {
         counters.reset();
+        diagnostics.begin(startScn, endScn);
+        boolean completed = false;
+        try {
+            try (PreparedStatement statement = createQueryStatement()) {
+                LOGGER.debug("Fetching results for SCN [{}, {}]", startScn, endScn);
+                statement.setFetchSize(getConfig().getQueryFetchSize());
+                statement.setFetchDirection(ResultSet.FETCH_FORWARD);
+                statement.setString(1, startScn.toString());
+                statement.setString(2, endScn.toString());
 
-        try (PreparedStatement statement = createQueryStatement()) {
-            LOGGER.debug("Fetching results for SCN [{}, {}]", startScn, endScn);
-            statement.setFetchSize(getConfig().getQueryFetchSize());
-            statement.setFetchDirection(ResultSet.FETCH_FORWARD);
-            statement.setString(1, startScn.toString());
-            statement.setString(2, endScn.toString());
+                Instant queryStart = Instant.now();
+                try (ResultSet resultSet = executeQueryWithDiagnostics(statement)) {
+                    metrics.setLastDurationOfFetchQuery(
+                            Duration.between(queryStart, Instant.now()));
 
-            Instant queryStart = Instant.now();
-            try (ResultSet resultSet = statement.executeQuery()) {
-                metrics.setLastDurationOfFetchQuery(Duration.between(queryStart, Instant.now()));
+                    Instant startProcessTime = Instant.now();
+                    processResults(this.partition, resultSet);
 
-                Instant startProcessTime = Instant.now();
-                processResults(this.partition, resultSet);
+                    Duration totalTime = Duration.between(startProcessTime, Instant.now());
+                    metrics.setLastCapturedDmlCount(counters.dmlCount);
 
-                Duration totalTime = Duration.between(startProcessTime, Instant.now());
-                metrics.setLastCapturedDmlCount(counters.dmlCount);
+                    if (counters.dmlCount > 0
+                            || counters.commitCount > 0
+                            || counters.rollbackCount > 0) {
+                        warnPotentiallyStuckScn(currentOffsetScn, currentOffsetCommitScns);
 
-                if (counters.dmlCount > 0
-                        || counters.commitCount > 0
-                        || counters.rollbackCount > 0) {
-                    warnPotentiallyStuckScn(currentOffsetScn, currentOffsetCommitScns);
-
-                    currentOffsetScn = offsetContext.getScn();
-                    if (offsetContext.getCommitScn() != null) {
-                        currentOffsetCommitScns =
-                                offsetContext.getCommitScn().getCommitScnForAllRedoThreads();
+                        currentOffsetScn = offsetContext.getScn();
+                        if (offsetContext.getCommitScn() != null) {
+                            currentOffsetCommitScns =
+                                    offsetContext.getCommitScn().getCommitScnForAllRedoThreads();
+                        }
                     }
-                }
 
-                LOGGER.debug("{}.", counters);
-                LOGGER.debug(
-                        "Processed in {} ms. Lag: {}. Offset SCN: {}, Offset Commit SCN: {}, Active Transactions: {}, Sleep: {}",
-                        totalTime.toMillis(),
-                        metrics.getLagFromSourceInMilliseconds(),
-                        offsetContext.getScn(),
-                        offsetContext.getCommitScn(),
-                        metrics.getNumberOfActiveTransactions(),
-                        metrics.getSleepTimeInMilliseconds());
+                    LOGGER.debug("{}.", counters);
+                    LOGGER.debug(
+                            "Processed in {} ms. Lag: {}. Offset SCN: {}, Offset Commit SCN: {}, Active Transactions: {}, Sleep: {}",
+                            totalTime.toMillis(),
+                            metrics.getLagFromSourceInMilliseconds(),
+                            offsetContext.getScn(),
+                            offsetContext.getCommitScn(),
+                            metrics.getNumberOfActiveTransactions(),
+                            metrics.getSleepTimeInMilliseconds());
 
-                if (metrics.getNumberOfActiveTransactions() > 0 && LOGGER.isDebugEnabled()) {
-                    // This is wrapped in try-with-resources specifically for Infinispan performance
-                    try (Stream<T> stream = getTransactionCache().values().stream()) {
-                        LOGGER.debug(
-                                "All active transactions: {}",
-                                stream.map(t -> t.getTransactionId() + " (" + t.getStartScn() + ")")
-                                        .collect(Collectors.joining(",")));
+                    if (metrics.getNumberOfActiveTransactions() > 0 && LOGGER.isDebugEnabled()) {
+                        // This is wrapped in try-with-resources specifically for Infinispan
+                        // performance
+                        try (Stream<T> stream = getTransactionCache().values().stream()) {
+                            LOGGER.debug(
+                                    "All active transactions: {}",
+                                    stream.map(
+                                                    t ->
+                                                            t.getTransactionId()
+                                                                    + " ("
+                                                                    + t.getStartScn()
+                                                                    + ")")
+                                            .collect(Collectors.joining(",")));
+                        }
                     }
-                }
 
-                metrics.setLastProcessedRowsCount(counters.rows);
+                    metrics.setLastProcessedRowsCount(counters.rows);
 
-                if (counters.rows == 0) {
-                    // When no rows are processed, don't advance the SCN
-                    return startScn;
-                } else {
-                    return calculateNewStartScn(
-                            endScn, offsetContext.getCommitScn().getMaxCommittedScn());
+                    if (counters.rows == 0) {
+                        // When no rows are processed, don't advance the SCN
+                        completed = true;
+                        return startScn;
+                    } else {
+                        long offsetStart = diagnostics.start();
+                        try {
+                            Scn next =
+                                    calculateNewStartScn(
+                                            endScn,
+                                            offsetContext.getCommitScn().getMaxCommittedScn());
+                            completed = true;
+                            return next;
+                        } finally {
+                            diagnostics.end(
+                                    LogMinerDiagnostics.Stage.OFFSET_CALCULATION, offsetStart);
+                        }
+                    }
                 }
             }
+        } catch (SQLException | InterruptedException | RuntimeException failure) {
+            completed = false;
+            throw failure;
+        } finally {
+            if (diagnostics.enabled()) {
+                // Diagnostic failures must never replace a processing exception or alter recovery.
+                try {
+                    diagnostics.finish(
+                            completed && !sequenceUnavailable && context.isRunning(),
+                            offsetContext.getScn(),
+                            offsetContext.getCommitScn(),
+                            lastProcessedScn,
+                            connectorConfig.getLogMiningBufferType().toString(),
+                            connectorConfig.isLobEnabled(),
+                            () -> {
+                                Optional<T> oldest = getOldestTransactionInCache();
+                                return LogMinerDiagnostics.describe(
+                                        oldest,
+                                        oldest.map(this::getTransactionEventCount).orElse(0),
+                                        getTransactionCache().size());
+                            });
+                } catch (RuntimeException diagnosticFailure) {
+                    LOGGER.debug("LogMiner diagnostics unavailable", diagnosticFailure);
+                }
+            }
+        }
+    }
+
+    private ResultSet executeQueryWithDiagnostics(PreparedStatement statement) throws SQLException {
+        long started = diagnostics.start();
+        try {
+            return statement.executeQuery();
+        } finally {
+            diagnostics.end(LogMinerDiagnostics.Stage.EXECUTE_QUERY, started);
         }
     }
 
@@ -334,10 +392,22 @@ public abstract class AbstractLogMinerEventProcessor<T extends AbstractTransacti
             throws SQLException, InterruptedException {
         while (context.isRunning() && hasNextWithMetricsUpdate(resultSet)) {
             counters.rows++;
-            processRow(
-                    partition,
-                    LogMinerEventRow.fromResultSet(
-                            resultSet, getConfig().getCatalogName(), isTrxIdRawValue()));
+            long decodeStart = diagnostics.start();
+            LogMinerEventRow row;
+            try {
+                row =
+                        LogMinerEventRow.fromResultSet(
+                                resultSet, getConfig().getCatalogName(), isTrxIdRawValue());
+            } finally {
+                diagnostics.end(LogMinerDiagnostics.Stage.ROW_DECODE, decodeStart);
+            }
+            diagnostics.row(row.getEventType());
+            long processStart = diagnostics.start();
+            try {
+                processRow(partition, row);
+            } finally {
+                diagnostics.end(LogMinerDiagnostics.Stage.ROW_PROCESS, processStart);
+            }
         }
     }
 
@@ -614,8 +684,14 @@ public abstract class AbstractLogMinerEventProcessor<T extends AbstractTransacti
                                                 Clock.system(),
                                                 dmlEvent.getRowId());
                             }
-                            dispatcher.dispatchDataChangeEvent(
-                                    partition, event.getTableId(), logMinerChangeRecordEmitter);
+                            long dispatchStart = diagnostics.start();
+                            try {
+                                dispatcher.dispatchDataChangeEvent(
+                                        partition, event.getTableId(), logMinerChangeRecordEmitter);
+                            } finally {
+                                diagnostics.end(
+                                        LogMinerDiagnostics.Stage.DATA_DISPATCH, dispatchStart);
+                            }
                         }
 
                         // Clear redo SQL
@@ -1379,6 +1455,7 @@ public abstract class AbstractLogMinerEventProcessor<T extends AbstractTransacti
      * @throws SQLException if there was a database exception
      */
     private boolean hasNextWithMetricsUpdate(ResultSet resultSet) throws SQLException {
+        long nextStart = diagnostics.start();
         Instant start = Instant.now();
         boolean result = false;
         try {
@@ -1427,6 +1504,9 @@ public abstract class AbstractLogMinerEventProcessor<T extends AbstractTransacti
             // Track that we gracefully stopped due to a ORA-00310.
             // Will be used to detect an infinite loop of this error across sequential iterations
             sequenceUnavailable = true;
+        } finally {
+            // Includes the final false result and exceptional reads.
+            diagnostics.end(LogMinerDiagnostics.Stage.RESULT_SET_NEXT, nextStart);
         }
         return result;
     }
@@ -1527,6 +1607,7 @@ public abstract class AbstractLogMinerEventProcessor<T extends AbstractTransacti
     private LogMinerDmlEntry parseDmlStatement(LogMinerEventRow row, Table table) {
         LogMinerDmlEntry dmlEntry;
         final String redoSql = row.getRedoSql();
+        long diagnosticParseStart = diagnostics.start();
         try {
             Instant parseStart = Instant.now();
             dmlEntry = resolveParser(row).parse(redoSql, table);
@@ -1538,6 +1619,8 @@ public abstract class AbstractLogMinerEventProcessor<T extends AbstractTransacti
                             + redoSql
                             + "'.";
             throw new DmlParserException(message, e);
+        } finally {
+            diagnostics.end(LogMinerDiagnostics.Stage.DML_PARSE, diagnosticParseStart);
         }
 
         if (dmlEntry.getOldValues().length == 0) {
