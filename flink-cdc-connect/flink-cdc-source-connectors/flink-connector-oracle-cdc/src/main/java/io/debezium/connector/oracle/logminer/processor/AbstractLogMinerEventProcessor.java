@@ -1258,7 +1258,7 @@ public abstract class AbstractLogMinerEventProcessor<T extends AbstractTransacti
             return;
         }
 
-        LOGGER.debug("DML: {}", row);
+        LOGGER.trace("DML: {}", row);
         LOGGER.trace("\t{}", row.getRedoSql());
 
         // Oracle LogMiner reports LONG data types as STATUS=2 on UPDATE statements but there is no
