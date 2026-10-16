@@ -62,6 +62,11 @@ public class OracleSourceConfigFactory extends JdbcSourceConfigFactory {
     /** Creates a new {@link OracleSourceConfig} for the given subtask {@code subtaskId}. */
     public OracleSourceConfig create(int subtaskId) {
         checkSupportCheckpointsAfterTasksFinished(closeIdleReaders);
+        if (startupOptions.startupMode
+                == org.apache.flink.cdc.connectors.base.options.StartupMode.SPECIFIC_OFFSETS) {
+            org.apache.flink.cdc.connectors.oracle.source.meta.offset.OracleStartupOffset.validate(
+                    startupOptions.getOffset());
+        }
         Properties props = new Properties();
         props.setProperty("connector.class", OracleConnector.class.getCanonicalName());
         // Logical name that identifies and provides a namespace for the particular Oracle

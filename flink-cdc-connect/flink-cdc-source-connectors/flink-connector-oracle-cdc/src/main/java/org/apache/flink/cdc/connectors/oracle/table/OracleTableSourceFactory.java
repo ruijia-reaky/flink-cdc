@@ -30,7 +30,9 @@ import org.apache.flink.table.factories.DynamicTableSourceFactory;
 import org.apache.flink.table.factories.FactoryUtil;
 
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import static org.apache.flink.cdc.connectors.base.options.JdbcSourceOptions.CONNECTION_POOL_SIZE;
@@ -69,7 +71,8 @@ public class OracleTableSourceFactory implements DynamicTableSourceFactory {
     public DynamicTableSource createDynamicTableSource(Context context) {
         final FactoryUtil.TableFactoryHelper helper =
                 FactoryUtil.createTableFactoryHelper(this, context);
-        helper.validateExcept(DebeziumOptions.DEBEZIUM_OPTIONS_PREFIX);
+        helper.validateExcept(
+                DebeziumOptions.DEBEZIUM_OPTIONS_PREFIX, "scan.startup.specific-offset.");
 
         final ReadableConfig config = helper.getOptions();
         String url = config.get(URL);
@@ -90,10 +93,15 @@ public class OracleTableSourceFactory implements DynamicTableSourceFactory {
         String tableName = config.get(TABLE_NAME);
         String schemaName = config.get(SCHEMA_NAME);
         int port = config.get(PORT);
-        StartupOptions startupOptions = getStartupOptions(config);
+        StartupOptions startupOptions =
+                getStartupOptions(config, context.getCatalogTable().getOptions());
         ResolvedSchema physicalSchema = context.getCatalogTable().getResolvedSchema();
 
         boolean enableParallelRead = config.get(SCAN_INCREMENTAL_SNAPSHOT_ENABLED);
+        if (startupOptions.getOffset() != null && !enableParallelRead) {
+            throw new ValidationException(
+                    "specific-offset requires scan.incremental.snapshot.enabled=true (new Source API)");
+        }
         int splitSize = config.get(SCAN_INCREMENTAL_SNAPSHOT_CHUNK_SIZE);
         int splitMetaGroupSize = config.get(CHUNK_META_GROUP_SIZE);
         int fetchSize = config.get(SCAN_SNAPSHOT_FETCH_SIZE);
@@ -191,7 +199,8 @@ public class OracleTableSourceFactory implements DynamicTableSourceFactory {
     private static final String SCAN_STARTUP_MODE_VALUE_SNAPSHOT = "snapshot";
     private static final String SCAN_STARTUP_MODE_VALUE_LATEST = "latest-offset";
 
-    private static StartupOptions getStartupOptions(ReadableConfig config) {
+    private static StartupOptions getStartupOptions(
+            ReadableConfig config, Map<String, String> options) {
         String modeString = config.get(SCAN_STARTUP_MODE);
 
         switch (modeString.toLowerCase()) {
@@ -199,13 +208,25 @@ public class OracleTableSourceFactory implements DynamicTableSourceFactory {
                 return StartupOptions.initial();
             case SCAN_STARTUP_MODE_VALUE_SNAPSHOT:
                 return StartupOptions.snapshot();
+            case "specific-offset":
+                Map<String, String> offset = new HashMap<>();
+                options.forEach(
+                        (key, value) -> {
+                            String prefix = "scan.startup.specific-offset.";
+                            if (key.startsWith(prefix)) {
+                                offset.put(key.substring(prefix.length()), value);
+                            }
+                        });
+                org.apache.flink.cdc.connectors.oracle.source.meta.offset.OracleStartupOffset
+                        .validate(offset);
+                return StartupOptions.specificOffset(offset);
             case SCAN_STARTUP_MODE_VALUE_LATEST:
                 return StartupOptions.latest();
 
             default:
                 throw new ValidationException(
                         String.format(
-                                "Invalid value for option '%s'. Supported values are [%s, %s, %s], but was: %s",
+                                "Invalid value for option '%s'. Supported values are [%s, %s, %s, specific-offset], but was: %s",
                                 SCAN_STARTUP_MODE.key(),
                                 SCAN_STARTUP_MODE_VALUE_INITIAL,
                                 SCAN_STARTUP_MODE_VALUE_SNAPSHOT,

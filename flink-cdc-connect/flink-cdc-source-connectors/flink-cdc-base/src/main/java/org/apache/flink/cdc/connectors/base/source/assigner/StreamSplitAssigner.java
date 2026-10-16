@@ -157,9 +157,11 @@ public class StreamSplitAssigner implements SplitAssigner {
                 break;
             case SPECIFIC_OFFSETS:
                 startingOffset =
-                        offsetFactory.newOffset(
-                                startupOptions.specificOffsetFile,
-                                startupOptions.specificOffsetPos.longValue());
+                        startupOptions.getOffset() != null
+                                ? offsetFactory.newOffset(startupOptions.getOffset())
+                                : offsetFactory.newOffset(
+                                        startupOptions.specificOffsetFile,
+                                        startupOptions.specificOffsetPos.longValue());
                 break;
             default:
                 throw new IllegalStateException(

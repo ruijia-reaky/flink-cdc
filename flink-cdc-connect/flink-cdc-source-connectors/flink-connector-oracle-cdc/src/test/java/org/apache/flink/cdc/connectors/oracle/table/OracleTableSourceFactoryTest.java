@@ -87,6 +87,26 @@ public class OracleTableSourceFactoryTest {
     private static final Properties PROPERTIES = new Properties();
 
     @Test
+    public void testSpecificOffsetMap() throws Exception {
+        Map<String, String> properties = getAllRequiredOptionsWithHost();
+        properties.put("scan.startup.mode", "specific-offset");
+        properties.put("scan.incremental.snapshot.enabled", "true");
+        properties.put("scan.startup.specific-offset.scn", "16892432184625");
+        DynamicTableSource source = createTableSource(properties);
+        java.lang.reflect.Field field = OracleTableSource.class.getDeclaredField("startupOptions");
+        field.setAccessible(true);
+        StartupOptions options = (StartupOptions) field.get(source);
+        assertEquals("16892432184625", options.getOffset().get("scn"));
+        properties.put("scan.incremental.snapshot.enabled", "false");
+        try {
+            createTableSource(properties);
+            fail("Legacy SourceFunction must reject unsupported map startup");
+        } catch (org.apache.flink.table.api.ValidationException expected) {
+            assertTrue(ExceptionUtils.stringifyException(expected).contains("new Source API"));
+        }
+    }
+
+    @Test
     public void testRequiredProperties() {
         Map<String, String> properties = getAllRequiredOptions();
 
@@ -449,7 +469,7 @@ public class OracleTableSourceFactoryTest {
         } catch (Throwable t) {
             String msg =
                     "Invalid value for option 'scan.startup.mode'. Supported values are "
-                            + "[initial, snapshot, latest-offset], "
+                            + "[initial, snapshot, latest-offset, specific-offset], "
                             + "but was: abc";
 
             assertTrue(ExceptionUtils.findThrowableWithMessage(t, msg).isPresent());

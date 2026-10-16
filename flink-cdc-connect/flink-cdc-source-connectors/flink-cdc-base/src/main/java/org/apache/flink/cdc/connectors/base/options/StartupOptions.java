@@ -18,6 +18,9 @@
 package org.apache.flink.cdc.connectors.base.options;
 
 import java.io.Serializable;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
@@ -30,6 +33,7 @@ public final class StartupOptions implements Serializable {
     public final String specificOffsetFile;
     public final Integer specificOffsetPos;
     public final Long startupTimestampMillis;
+    public final Map<String, String> offset;
 
     /**
      * Performs an initial snapshot on the monitored database tables upon first startup, and
@@ -86,15 +90,33 @@ public final class StartupOptions implements Serializable {
         return new StartupOptions(StartupMode.TIMESTAMP, null, null, startupTimestampMillis);
     }
 
+    /** Starts from a connector-specific offset map, for example Oracle scn/commit_scn. */
+    public static StartupOptions specificOffset(Map<String, String> offset) {
+        if (offset == null || offset.isEmpty()) {
+            throw new IllegalArgumentException("Specific offset map must not be empty");
+        }
+        return new StartupOptions(StartupMode.SPECIFIC_OFFSETS, null, null, null, offset);
+    }
+
+    public Map<String, String> getOffset() {
+        return offset;
+    }
+
+    private StartupOptions(StartupMode mode, String file, Integer pos, Long timestamp) {
+        this(mode, file, pos, timestamp, null);
+    }
+
     private StartupOptions(
             StartupMode startupMode,
             String specificOffsetFile,
             Integer specificOffsetPos,
-            Long startupTimestampMillis) {
+            Long startupTimestampMillis,
+            Map<String, String> offset) {
         this.startupMode = startupMode;
         this.specificOffsetFile = specificOffsetFile;
         this.specificOffsetPos = specificOffsetPos;
         this.startupTimestampMillis = startupTimestampMillis;
+        this.offset = offset == null ? null : Collections.unmodifiableMap(new HashMap<>(offset));
 
         switch (startupMode) {
             case INITIAL:
@@ -103,6 +125,9 @@ public final class StartupOptions implements Serializable {
             case LATEST_OFFSET:
                 break;
             case SPECIFIC_OFFSETS:
+                if (offset != null && !offset.isEmpty()) {
+                    break;
+                }
                 checkNotNull(specificOffsetFile, "specificOffsetFile shouldn't be null");
                 checkNotNull(specificOffsetPos, "specificOffsetPos shouldn't be null");
                 break;
@@ -137,12 +162,13 @@ public final class StartupOptions implements Serializable {
         return startupMode == that.startupMode
                 && Objects.equals(specificOffsetFile, that.specificOffsetFile)
                 && Objects.equals(specificOffsetPos, that.specificOffsetPos)
-                && Objects.equals(startupTimestampMillis, that.startupTimestampMillis);
+                && Objects.equals(startupTimestampMillis, that.startupTimestampMillis)
+                && Objects.equals(offset, that.offset);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
-                startupMode, specificOffsetFile, specificOffsetPos, startupTimestampMillis);
+                startupMode, specificOffsetFile, specificOffsetPos, startupTimestampMillis, offset);
     }
 }
