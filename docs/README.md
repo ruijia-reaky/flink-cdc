@@ -1,5 +1,7 @@
 This README gives an overview of how to build and contribute to the documentation of Apache Flink.
 
+本仓库自定义升级文档统一位于 [Debezium 2.7.4 文档索引](debezium-2.7.4/README.md)，最新结论见 [升级收益与稳定性总结](debezium-2.7.4/最终升级收益与稳定性总结.md)。架构导读和 Oracle/LogMiner SQL 分析也已移入该目录。
+
 The documentation is included with the source of Apache Flink in order to ensure that you always
 have docs corresponding to your checked out version. The online documentation at
 https://flink.apache.org/ is also generated from the files found here.
