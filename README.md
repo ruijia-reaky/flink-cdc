@@ -1,4 +1,4 @@
-> 本仓库基于 Flink CDC 3.2.1，升级 Debezium 至 2.7.4.Final，并回移 Oracle LOB 保存点回滚修复。详见 [提交追溯、构建与测试说明](docs/debezium-2.7.4/README.md)。
+> 本仓库基于 Flink CDC 3.2.1，升级 Debezium 至 2.7.4.Final，并回移 Oracle LOB 保存点回滚修复。
 
 <p align="center">
   <a href="https://nightlies.apache.org/flink/flink-cdc-docs-stable/"><img src="docs/static/fig/flinkcdc-logo.png" alt="Flink CDC" style="width: 375px;"></a>
